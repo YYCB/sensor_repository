@@ -63,8 +63,14 @@ public:
     ///       (i.e. after setSyncConfig succeeded and the device is streaming).
     ///   FreeRun / Standalone — always returns false; these modes have no
     ///       external synchronisation dependency.
-    ///   SoftwareTrigger / HardwareTrigger — returns true when the last
-    ///       triggered capture completed successfully.
+    ///   SoftwareTrigger — returns true from the moment the triggered frame
+    ///       becomes available (i.e. after the HAL has received and queued the
+    ///       frame following the most recent triggerOnce() call).  Returns false
+    ///       immediately after triggerOnce() is called and before the resulting
+    ///       frame arrives, and resets to false when the next triggerOnce() call
+    ///       is made.
+    ///   HardwareTrigger — returns true when at least one triggered frame has
+    ///       been received since the last setSyncConfig() / open() call.
     virtual bool isSynced() const = 0;
 };
 

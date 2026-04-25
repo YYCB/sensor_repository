@@ -34,8 +34,10 @@ struct PointXYZI {
 ///   invalid entries in the vector.  A point is included only when its range
 ///   is within [Lidar3DConfig::range_min, Lidar3DConfig::range_max] and its
 ///   intensity >= Lidar3DConfig::min_intensity.  Callers may iterate over
-///   points directly without checking valid_count, but valid_count is provided
-///   as a convenience for logging and quick sanity checks.
+///   points directly without checking valid_count; the field is retained for
+///   API consistency with other sensor types (e.g. PointCloud from camera HAL),
+///   for logging convenience, and to support future partial-scan extensions
+///   where points.size() may exceed valid_count.
 struct PointCloudXYZI {
     std::vector<PointXYZI>   points;
     int                      valid_count    = 0;   ///< Equal to points.size() after assembly

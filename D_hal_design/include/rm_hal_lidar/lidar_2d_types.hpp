@@ -48,7 +48,13 @@ struct Lidar2DConfig {
     // ── Filtering ─────────────────────────────────────────────────────────────
     bool  enable_intensity_filter = false;
     float min_intensity           = 0.f;
-    int   mask                    = 0;         ///< Angular sector bitmask to suppress (1 bit = 1°; bit 0 = 0°)
+    /// Angular sector bitmask to suppress.
+    /// Each bit corresponds to one 1° sector: bit 0 = 0°–1°, bit 1 = 1°–2°, …
+    /// NOTE: int is 32 bits on all supported platforms, so only sectors 0°–31°
+    /// can be individually masked this way.  For full 360° masking, use multiple
+    /// bitmask words or represent the suppressed range via angle_min / angle_max
+    /// in Lidar2DConfig.  A value of 0 (default) disables sector suppression.
+    int   mask                    = 0;
     /// Minimum number of consecutive valid points required to retain a scan
     /// segment.  Isolated returns within a gap of fewer than error_circle
     /// points are treated as noise and discarded.  Set to 0 to disable.

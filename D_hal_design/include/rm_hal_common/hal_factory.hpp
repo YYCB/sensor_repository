@@ -84,7 +84,8 @@ public:
     /// internal mutex to avoid a potential deadlock when an enumerator
     /// re-enters registerType() or registerEnumerator() (e.g. during lazy
     /// hot-plug enumeration).  The enumerator map is snapshot-copied under the
-    /// lock; individual enumerator calls run unlocked.
+    /// lock at O(N_types) cost; individual enumerator calls run unlocked.
+    /// For typical deployments (< 10 registered types) this overhead is negligible.
     std::vector<DeviceInfo> enumerateDevices() const {
         std::unordered_map<std::string, Enumerator> snapshot;
         {

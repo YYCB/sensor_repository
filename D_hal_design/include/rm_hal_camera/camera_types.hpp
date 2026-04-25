@@ -159,8 +159,10 @@ struct CameraConfig {
 
     // ── Streaming behaviour ───────────────────────────────────────────────────
     /// Number of frames held in the HAL-internal ring buffer per stream.
-    /// Valid range: [2, 32].  Values below 2 are clamped to 2 by the driver.
-    /// Larger values reduce frame-drop risk under CPU load at the cost of latency.
+    /// Valid range: [MIN_RING_BUFFER_DEPTH, 32].  Values below the minimum are
+    /// clamped by the driver.  Larger values reduce frame-drop risk under CPU
+    /// load at the cost of increased end-to-end latency.
+    static constexpr int MIN_RING_BUFFER_DEPTH = 2;
     int                ring_buffer_depth    = 4;
     AlignMode          align_mode           = AlignMode::None;
     FrameAggregateMode frame_aggregate_mode = FrameAggregateMode::Any;

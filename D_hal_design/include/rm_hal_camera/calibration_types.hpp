@@ -54,6 +54,10 @@ struct IMUCalibration {
     /// where R = scale_bias[0..8] (3×3 row-major scale / cross-axis matrix)
     ///       b = scale_bias[9..11] (3×1 bias vector, same SI units as output)
     ///
+    /// Concrete example for gyro X-axis (row 0):
+    ///   corrected_x = scale_bias[0]*raw_x + scale_bias[1]*raw_y
+    ///               + scale_bias[2]*raw_z + scale_bias[9]
+    ///
     /// For accelerometers: output is m/s².  For gyroscopes: output is rad/s.
     float scale_bias[12]     = {};
     float noise_variances[3] = {};  ///< Measurement noise variance [x,y,z] (SI²/Hz)
