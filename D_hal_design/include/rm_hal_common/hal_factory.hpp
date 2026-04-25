@@ -138,9 +138,15 @@ private:
 //
 // The macro creates a function-local static that triggers exactly once at
 // program startup to register the driver with the factory singleton.
-#define REGISTER_HAL(Factory, type_name, Impl)                              \
-    static const bool _hal_reg_##Impl = []() {                              \
-        Factory::instance().registerType(                                   \
-            type_name, []() { return std::make_unique<Impl>(); });          \
-        return true;                                                        \
+//
+// Variable naming: the static is named _hal_reg_<Factory>_<Impl>_<LINE> so
+// that the same Impl class can be safely registered in multiple factories
+// (e.g. a SimHAL registered in both CameraFactory and Lidar3DFactory), and
+// so that including the same registration header twice compiles cleanly —
+// the line-number suffix makes each instantiation unique.
+#define REGISTER_HAL(Factory, type_name, Impl)                                         \
+    static const bool _hal_reg_##Factory##_##Impl##_##__LINE__ = []() {               \
+        Factory::instance().registerType(                                              \
+            type_name, []() { return std::make_unique<Impl>(); });                    \
+        return true;                                                                   \
     }()

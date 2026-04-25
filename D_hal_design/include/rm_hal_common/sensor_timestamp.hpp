@@ -22,7 +22,19 @@ struct SensorTimestamp {
     uint64_t        ns     = 0;
     TimestampDomain domain = TimestampDomain::System;
 
-    bool operator<(const SensorTimestamp& o)  const noexcept { return ns < o.ns; }
+    bool operator<(const SensorTimestamp& o)  const noexcept {
+        // Compare ns first; break ties by domain to remain consistent with
+        // operator==, which requires both ns and domain to match.
+        // Rationale: operator== already compares both fields, so operator< must
+        // also use both fields to satisfy strict-weak-ordering: if neither
+        // a<b nor b<a holds, then a and b must compare equal (a==b).
+        // Without the domain tie-break, two timestamps with identical ns but
+        // different domains would be "equivalent" under < yet unequal under ==,
+        // violating the invariant and causing undefined behaviour in ordered
+        // containers such as std::set and std::map.
+        if (ns != o.ns) return ns < o.ns;
+        return domain < o.domain;
+    }
     bool operator>(const SensorTimestamp& o)  const noexcept { return o < *this; }
     bool operator<=(const SensorTimestamp& o) const noexcept { return !(o < *this); }
     bool operator>=(const SensorTimestamp& o) const noexcept { return !(*this < o); }

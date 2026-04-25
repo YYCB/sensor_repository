@@ -4,17 +4,23 @@
 // Uses a custom CHECK macro so assertions run in both Debug and Release builds.
 
 #include "rm_hal_audio/audio_types.hpp"
+#include "rm_hal_camera/calibration_types.hpp"
 #include "rm_hal_camera/camera_types.hpp"
 #include "rm_hal_camera/pixel_encoding.hpp"
 #include "rm_hal_camera/stream_type.hpp"
+#include "rm_hal_camera/sync_manager.hpp"
 #include "rm_hal_common/error_code.hpp"
+#include "rm_hal_common/hal_factory.hpp"
 #include "rm_hal_common/health_status.hpp"
 #include "rm_hal_common/sensor_timestamp.hpp"
 #include "rm_hal_imu/imu_types.hpp"
+#include "rm_hal_lidar/lidar_2d_types.hpp"
 #include "rm_hal_lidar/lidar_3d_types.hpp"
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
+#include <set>
 #include <string>
 #include <unordered_set>
 
@@ -44,7 +50,7 @@ static void test_sensor_timestamp()
     CHECK(ts.ns     == 0);
     CHECK(ts.domain == TimestampDomain::System);
 
-    // Comparison operators
+    // Comparison operators — same domain
     SensorTimestamp a, b;
     a.ns = 1000;
     b.ns = 2000;
@@ -58,6 +64,22 @@ static void test_sensor_timestamp()
     c.ns     = 1000;
     c.domain = TimestampDomain::System;
     CHECK(a == c);
+
+    // Cross-domain ordering consistency (Bug #1 fix validation):
+    // Two timestamps with the same ns but different domains must NOT be
+    // considered both "equivalent" under < AND "not equal" under ==.
+    // After the fix, operator< includes domain as a tie-breaker.
+    SensorTimestamp hw, sys;
+    hw.ns  = 5000;  hw.domain  = TimestampDomain::Hardware;
+    sys.ns = 5000;  sys.domain = TimestampDomain::System;
+    CHECK(hw != sys);            // different domains → not equal
+    // Exactly one ordering must hold (strict weak ordering)
+    CHECK((hw < sys) != (sys < hw));   // exactly one is less-than
+    // Transitive: a < hw, hw < b, then a < b
+    SensorTimestamp a2; a2.ns = 4999; a2.domain = TimestampDomain::System;
+    SensorTimestamp b2; b2.ns = 5001; b2.domain = TimestampDomain::System;
+    CHECK(a2 < hw);
+    CHECK(hw < b2);
 
     // deltaNs / deltaUs
     CHECK(b.deltaNs(a) ==  1000);
@@ -333,6 +355,327 @@ static void test_stream_index_hash()
     CHECK(seen.count(StreamIndex{StreamType::GYRO,  0}) == 0u);
 }
 
+// ── SensorTimestamp in std::set (strict-weak-ordering validation) ──────────────
+static void test_sensor_timestamp_ordered_set()
+{
+    using rm::hal::SensorTimestamp;
+    using rm::hal::TimestampDomain;
+
+    // std::set requires strict weak ordering. After Bug #1 fix, inserting
+    // timestamps with the same ns but different domains must produce 2 distinct
+    // elements (not silently collapse to 1 as it would with the old ordering).
+    std::set<SensorTimestamp> s;
+
+    SensorTimestamp hw;  hw.ns  = 1000;  hw.domain  = TimestampDomain::Hardware;
+    SensorTimestamp sys; sys.ns = 1000;  sys.domain = TimestampDomain::System;
+    SensorTimestamp gl;  gl.ns  = 1000;  gl.domain  = TimestampDomain::Global;
+
+    s.insert(hw);
+    s.insert(sys);
+    s.insert(gl);
+    CHECK(s.size() == 3u);   // all three are distinct elements
+
+    // Iterating in sorted order should reflect the domain tie-break ordering.
+    // Hardware < System < Global (enum values 0, 1, 2).
+    auto it = s.begin();
+    CHECK(it->domain == TimestampDomain::Hardware); ++it;
+    CHECK(it->domain == TimestampDomain::System);   ++it;
+    CHECK(it->domain == TimestampDomain::Global);
+}
+
+// ── HALFactory register / create / enumerate ───────────────────────────────────
+
+// A minimal concrete interface used only in this test to avoid depending on
+// any real sensor HAL interface (those are pure-virtual and cannot be instantiated).
+struct ITestDevice { virtual ~ITestDevice() = default; virtual int id() const = 0; };
+struct AlphaDevice : ITestDevice { int id() const override { return 1; } };
+struct BetaDevice  : ITestDevice { int id() const override { return 2; } };
+
+static void test_hal_factory_register_create()
+{
+    using rm::hal::HALFactory;
+
+    // Use a local factory type to isolate this test from real sensor factories.
+    HALFactory<ITestDevice>& fac = HALFactory<ITestDevice>::instance();
+
+    fac.registerType("alpha", []() { return std::make_unique<AlphaDevice>(); });
+    fac.registerType("beta",  []() { return std::make_unique<BetaDevice>(); });
+
+    // Create registered types
+    auto a = fac.create("alpha");
+    auto b = fac.create("beta");
+    CHECK(a != nullptr);
+    CHECK(b != nullptr);
+    CHECK(a->id() == 1);
+    CHECK(b->id() == 2);
+
+    // Unknown type returns nullptr (no exception)
+    auto unknown = fac.create("gamma");
+    CHECK(unknown == nullptr);
+
+    // Re-registering with a new creator replaces the old one
+    fac.registerType("alpha", []() { return std::make_unique<BetaDevice>(); });
+    auto a2 = fac.create("alpha");
+    CHECK(a2 != nullptr);
+    CHECK(a2->id() == 2);   // now returns BetaDevice
+}
+
+static void test_hal_factory_enumerate()
+{
+    using rm::hal::HALFactory;
+    using rm::hal::DeviceInfo;
+
+    HALFactory<ITestDevice>& fac = HALFactory<ITestDevice>::instance();
+
+    // Register an enumerator that returns one DeviceInfo
+    fac.registerEnumerator("alpha", []() {
+        DeviceInfo d;
+        d.type          = "alpha";
+        d.serial_number = "SN0001";
+        d.name          = "Alpha Device";
+        return std::vector<DeviceInfo>{d};
+    });
+
+    auto devs = fac.enumerateDevices();
+    CHECK(!devs.empty());
+    bool found = false;
+    for (const auto& d : devs) {
+        if (d.serial_number == "SN0001") { found = true; break; }
+    }
+    CHECK(found);
+}
+
+// ── Calibration type defaults ──────────────────────────────────────────────────
+static void test_calibration_defaults()
+{
+    using rm::hal::sensor::CameraIntrinsics;
+    using rm::hal::sensor::CameraExtrinsics;
+    using rm::hal::sensor::IMUCalibration;
+    using rm::hal::sensor::DepthMetadata;
+    using rm::hal::sensor::DistortionModel;
+    using rm::hal::sensor::StreamType;
+
+    CameraIntrinsics intr;
+    CHECK(intr.fx == 0.f && intr.fy == 0.f);
+    CHECK(intr.cx == 0.f && intr.cy == 0.f);
+    CHECK(intr.width == 0 && intr.height == 0);
+    CHECK(intr.distortion_model == DistortionModel::BrownConrady);
+    CHECK(!intr.valid);
+
+    CameraExtrinsics extr;
+    CHECK(!extr.valid);
+    for (float v : extr.rotation)    CHECK(v == 0.f);
+    for (float v : extr.translation) CHECK(v == 0.f);
+
+    IMUCalibration imu_cal;
+    CHECK(imu_cal.stream == StreamType::GYRO);
+    CHECK(!imu_cal.valid);
+    for (float v : imu_cal.scale_bias)       CHECK(v == 0.f);
+    for (float v : imu_cal.noise_variances)  CHECK(v == 0.f);
+    for (float v : imu_cal.bias_variances)   CHECK(v == 0.f);
+
+    DepthMetadata dm;
+    CHECK(dm.depth_scale      == 0.001f);
+    CHECK(dm.depth_min_meters == 0.1f);
+    CHECK(dm.depth_max_meters == 10.0f);
+    CHECK(!dm.valid);
+}
+
+// ── CameraConfig defaults ──────────────────────────────────────────────────────
+static void test_camera_config_defaults()
+{
+    using rm::hal::sensor::CameraConfig;
+    using rm::hal::sensor::AlignMode;
+    using rm::hal::sensor::FrameAggregateMode;
+    using rm::hal::sensor::SyncMode;
+    using rm::hal::sensor::PixelEncoding;
+
+    CameraConfig cfg;
+    CHECK(cfg.width         == 1280);
+    CHECK(cfg.height        ==  720);
+    CHECK(cfg.fps           ==   30);
+    CHECK(cfg.color_encoding == PixelEncoding::BGR8);
+    CHECK(cfg.enable_color);
+    CHECK(cfg.depth_width   ==  640);
+    CHECK(cfg.depth_height  ==  480);
+    CHECK(cfg.depth_fps     ==   30);
+    CHECK(cfg.enable_depth);
+    CHECK(!cfg.enable_ir);
+    CHECK(cfg.ring_buffer_depth    == 4);
+    CHECK(CameraConfig::MIN_RING_BUFFER_DEPTH == 2);
+    CHECK(cfg.align_mode           == AlignMode::None);
+    CHECK(cfg.frame_aggregate_mode == FrameAggregateMode::Any);
+    CHECK(cfg.sync_mode            == SyncMode::FreeRun);
+    CHECK(!cfg.enable_gmsl_trigger);
+    CHECK(cfg.gmsl_trigger_fps_hz  == 30.0f);
+}
+
+// ── SyncConfig defaults ────────────────────────────────────────────────────────
+static void test_sync_config_defaults()
+{
+    using rm::hal::sensor::SyncConfig;
+    using rm::hal::sensor::SyncMode;
+
+    SyncConfig cfg;
+    CHECK(cfg.mode                   == SyncMode::FreeRun);
+    CHECK(cfg.depth_delay_us         == 0);
+    CHECK(cfg.color_delay_us         == 0);
+    CHECK(cfg.trigger2image_delay_us == 0);
+    CHECK(cfg.trigger_out_delay_us   == 0);
+    CHECK(!cfg.trigger_out_enabled);
+    CHECK(cfg.frames_per_trigger     == 1);
+}
+
+// ── ImageFrame / FrameSet defaults ────────────────────────────────────────────
+static void test_image_frame_defaults()
+{
+    using rm::hal::sensor::ImageFrame;
+    using rm::hal::sensor::FrameSet;
+    using rm::hal::sensor::PixelEncoding;
+
+    ImageFrame f;
+    CHECK(f.encoding             == PixelEncoding::BGR8);
+    CHECK(f.width                == 0);
+    CHECK(f.height               == 0);
+    CHECK(f.stride               == 0);
+    CHECK(f.data.empty());
+    CHECK(f.frame_number         == 0u);
+    CHECK(f.actual_exposure_us   == 0.f);
+    CHECK(f.actual_gain          == 0.f);
+    CHECK(!f.auto_exposure_enabled);
+
+    FrameSet fs;
+    CHECK(fs.color    == nullptr);
+    CHECK(fs.depth    == nullptr);
+    CHECK(fs.ir_left  == nullptr);
+    CHECK(fs.ir_right == nullptr);
+}
+
+// ── Lidar2DConfig defaults ─────────────────────────────────────────────────────
+static void test_lidar2d_defaults()
+{
+    using rm::hal::sensor::Lidar2DConfig;
+    using rm::hal::sensor::LidarScanMode;
+    using rm::hal::sensor::LaserScanData;
+
+    Lidar2DConfig cfg;
+    CHECK(cfg.port              == 6543);
+    CHECK(cfg.range_min         == 0.1);
+    CHECK(cfg.range_max         == 30.0);
+    CHECK(cfg.scan_frequency_hz == 10);
+    CHECK(cfg.scan_mode         == LidarScanMode::Standard);
+    CHECK(cfg.angle_resolution_deg == 1.0f);
+    CHECK(cfg.rpm               == 600);
+    CHECK(cfg.raw_bytes);
+    CHECK(!cfg.with_checksum);
+    CHECK(!cfg.with_intensity);
+    CHECK(cfg.output_360);
+    CHECK(cfg.recv_buf_size     == 1024 * 1024);
+    CHECK(cfg.udp_timeout_ms    == 5000);
+    CHECK(!cfg.enable_intensity_filter);
+    CHECK(cfg.min_intensity     == 0.f);
+    CHECK(cfg.mask              == 0);
+    CHECK(cfg.error_circle      == 3);
+    CHECK(!cfg.with_deshadow);
+
+    // LaserScanData defaults
+    LaserScanData scan;
+    CHECK(scan.angle_min       == 0.0);
+    CHECK(scan.angle_max       == 0.0);
+    CHECK(scan.angle_increment == 0.0);
+    CHECK(scan.scan_time       == 0.0);
+    CHECK(scan.range_min       == 0.0);
+    CHECK(scan.range_max       == 0.0);
+    CHECK(scan.ranges.empty());
+    CHECK(scan.intensities.empty());
+}
+
+// ── ImuConfig / ImuData defaults ──────────────────────────────────────────────
+static void test_imu_defaults()
+{
+    using rm::hal::sensor::ImuConfig;
+    using rm::hal::sensor::ImuData;
+    using rm::hal::sensor::AccelRange;
+    using rm::hal::sensor::GyroRange;
+    using rm::hal::sensor::ImuFusionMode;
+
+    ImuConfig cfg;
+    CHECK(cfg.baudrate           == 460800);
+    CHECK(cfg.output_rate_hz     == 200);
+    CHECK(cfg.accel_range        == AccelRange::G8);
+    CHECK(cfg.gyro_range         == GyroRange::DPS2000);
+    CHECK(cfg.fusion_mode        == ImuFusionMode::Interpolation);
+    CHECK(cfg.enable_accel_correction);
+    CHECK(cfg.enable_gyro_correction);
+    CHECK(!cfg.enable_mag_correction);
+
+    ImuData d;
+    CHECK(d.accel_x == 0.0 && d.accel_y == 0.0 && d.accel_z == 0.0);
+    CHECK(d.gyro_x  == 0.0 && d.gyro_y  == 0.0 && d.gyro_z  == 0.0);
+    // Quaternion identity: w=1, x=y=z=0
+    CHECK(d.quat_w  == 1.0);
+    CHECK(d.quat_x  == 0.0 && d.quat_y == 0.0 && d.quat_z == 0.0);
+    CHECK(!d.has_orientation);
+    CHECK(!d.has_linear_accel);
+    CHECK(d.euler_roll  == 0.0);
+    CHECK(d.euler_pitch == 0.0);
+    CHECK(d.euler_yaw   == 0.0);
+}
+
+// ── ErrorInfo defaults ─────────────────────────────────────────────────────────
+static void test_error_info_defaults()
+{
+    rm::hal::ErrorInfo ei;
+    CHECK(ei.code == rm::hal::ErrorCode::OK);
+    CHECK(ei.message.empty());
+    CHECK(ei.sdk_error_detail.empty());
+}
+
+// ── DeviceInfo / ConnectionType ────────────────────────────────────────────────
+static void test_device_info_defaults()
+{
+    using rm::hal::DeviceInfo;
+    using rm::hal::ConnectionType;
+
+    DeviceInfo d;
+    CHECK(d.type.empty());
+    CHECK(d.serial_number.empty());
+    CHECK(d.name.empty());
+    CHECK(d.connection == ConnectionType::Unknown);
+    CHECK(d.port.empty());
+    CHECK(d.firmware_version.empty());
+}
+
+// ── PointXYZI / PointCloudXYZI defaults ──────────────────────────────────────
+static void test_pointcloud_defaults()
+{
+    using rm::hal::sensor::PointXYZI;
+    using rm::hal::sensor::PointCloudXYZI;
+
+    PointXYZI p;
+    CHECK(p.x            == 0.f);
+    CHECK(p.y            == 0.f);
+    CHECK(p.z            == 0.f);
+    CHECK(p.intensity    == 0.f);
+    CHECK(p.time_offset_s == 0.f);
+    CHECK(p.ring         == 0u);
+
+    PointCloudXYZI cloud;
+    CHECK(cloud.valid_count   == 0);
+    CHECK(cloud.scan_duration_s == 0.0);
+    CHECK(cloud.sequence      == 0u);
+    CHECK(cloud.points.empty());
+}
+
+// ── AudioConfig defaults ───────────────────────────────────────────────────────
+static void test_audio_config_defaults()
+{
+    rm::hal::sensor::AudioConfig cfg;
+    CHECK(cfg.sample_rate == 16000u);
+    CHECK(cfg.channels    == 4u);
+    CHECK(cfg.enable_doa);
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 int main()
 {
@@ -350,6 +693,20 @@ int main()
     RUN(audio_frame_total_samples);
     RUN(stream_index_operators);
     RUN(stream_index_hash);
+    // ── new tests ──
+    RUN(sensor_timestamp_ordered_set);
+    RUN(hal_factory_register_create);
+    RUN(hal_factory_enumerate);
+    RUN(calibration_defaults);
+    RUN(camera_config_defaults);
+    RUN(sync_config_defaults);
+    RUN(image_frame_defaults);
+    RUN(lidar2d_defaults);
+    RUN(imu_defaults);
+    RUN(error_info_defaults);
+    RUN(device_info_defaults);
+    RUN(pointcloud_defaults);
+    RUN(audio_config_defaults);
     std::puts("=== All tests passed ===");
     return 0;
 }
