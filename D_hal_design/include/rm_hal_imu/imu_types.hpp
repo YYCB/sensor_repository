@@ -48,11 +48,9 @@ struct ImuConfig {
     bool enable_gyro_correction  = true;
     bool enable_mag_correction   = false;
 
-    // ── Noise density parameters (for EKF / UKF) ─────────────────────────────
-    double accel_noise_density = 1e-4;   ///< m/s²/√Hz
-    double gyro_noise_density  = 1e-4;   ///< rad/s/√Hz
-    double accel_random_walk   = 1e-4;   ///< m/s³/√Hz
-    double gyro_random_walk    = 1e-4;   ///< rad/s²/√Hz
+    // Note: noise density / random-walk parameters are not configured here.
+    // They are factory-calibrated values reported by IImuHAL::getDeviceInfo()
+    // after the device is opened.  Use ImuDeviceInfo to initialise your EKF/UKF.
 };
 
 // ── IMU data frame ────────────────────────────────────────────────────────────
@@ -96,8 +94,22 @@ struct ImuData {
     // ── Data quality ──────────────────────────────────────────────────────────────
     bool     is_calibrated       = true;
     uint32_t sequence            = 0;    ///< Monotonic counter
-    uint16_t status_word         = 0;    ///< DataID 0x70 — device status bit field
-    uint32_t sample_timestamp_ms = 0;    ///< DataID 0x80 — device-side sample time (ms)
+    /// DataID 0x70 — YESENSE device status bit field (raw uint16).
+    /// Key bits (refer to YESENSE communication protocol §4.7 for the full table):
+    ///   bit 0  : Gyro normal (1) / abnormal (0)
+    ///   bit 1  : Accel normal (1) / abnormal (0)
+    ///   bit 2  : Magnetometer normal (1) / abnormal (0) — only if has_magnetometer
+    ///   bit 3  : Static state detected (1)
+    ///   bit 4  : Initial alignment complete (1)
+    ///   bit 8  : GPS valid (1) — for GNSS-aided variants
+    ///   All other bits reserved; treat as 0.
+    uint16_t status_word         = 0;
+    /// DataID 0x80 — device-side sample timestamp in milliseconds (wraps at ~49 days).
+    /// Relationship to SensorTimestamp::ns: when DataID 0x80 is present,
+    /// the HAL sets timestamp.domain = Hardware and converts this value to
+    /// timestamp.ns (after host–device clock alignment on open()).
+    /// If DataID 0x80 is absent, timestamp.domain = System (packet arrival time).
+    uint32_t sample_timestamp_ms = 0;
 };
 
 // ── IMU device information ────────────────────────────────────────────────────

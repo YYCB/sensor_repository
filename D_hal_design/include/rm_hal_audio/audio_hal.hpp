@@ -26,9 +26,11 @@ public:
     // ── Streaming control ─────────────────────────────────────────────────────
 
     /// Start the ALSA capture loop (launches internal thread).
-    virtual bool startCapture() = 0;
+    /// Overrides ISensorHAL::startStreaming().
+    virtual bool startStreaming() override = 0;
     /// Stop the ALSA capture loop.
-    virtual void stopCapture()  = 0;
+    /// Overrides ISensorHAL::stopStreaming().
+    virtual bool stopStreaming()  override = 0;
 
     // ── Callback API ──────────────────────────────────────────────────────────
 

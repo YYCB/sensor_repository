@@ -36,7 +36,20 @@ struct PointCloudXYZI {
     uint32_t                 sequence        = 0;    ///< Monotonic scan counter
 };
 
-/// Configuration for a 3D rotating or solid-state LiDAR.
+/// Known 3D LiDAR hardware models.
+/// Used by Lidar3DConfig::model to select the correct packet decoder.
+/// Use LidarModel::Custom together with Lidar3DConfig::custom_model_name
+/// for any device not listed here.
+enum class LidarModel : uint8_t {
+    VLP_16       = 0,   ///< Velodyne VLP-16 (Puck)
+    VLP_32C      = 1,   ///< Velodyne VLP-32C
+    HDL_64E      = 2,   ///< Velodyne HDL-64E
+    Livox_Mid360 = 3,   ///< Livox Mid-360
+    Sim          = 4,   ///< Synthetic / simulation source
+    Custom       = 255, ///< Other device; see Lidar3DConfig::custom_model_name
+};
+
+
 struct Lidar3DConfig {
     std::string device_id;
 
@@ -59,10 +72,11 @@ struct Lidar3DConfig {
     int recv_buf_size  = 2 * 1024 * 1024;       ///< UDP receive buffer (bytes)
     int udp_timeout_ms = 2000;
 
-    // ── Device model hint ─────────────────────────────────────────────────────
-    /// "VLP-16" | "VLP-32C" | "HDL-64E" | "Livox-Mid360" | "sim" | …
-    /// Used by the driver to select the correct packet decoder.
-    std::string model;
+    // ── Device model ─────────────────────────────────────────────────────────
+    /// Hardware model — selects the packet decoder inside the driver.
+    LidarModel  model             = LidarModel::VLP_16;
+    /// Optional free-form name used when model == LidarModel::Custom.
+    std::string custom_model_name;
 };
 
 }  // namespace rm::hal::sensor

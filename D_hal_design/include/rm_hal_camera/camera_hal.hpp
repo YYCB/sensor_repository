@@ -36,8 +36,8 @@ public:
 
     // ── Streaming control ─────────────────────────────────────────────────────
 
-    virtual bool startStreaming() = 0;
-    virtual bool stopStreaming()  = 0;
+    virtual bool startStreaming() override = 0;
+    virtual bool stopStreaming()  override = 0;
 
     // ── Polling API ───────────────────────────────────────────────────────────
     // Active when no callback is registered for the corresponding stream.

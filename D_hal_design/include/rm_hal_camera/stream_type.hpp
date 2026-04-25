@@ -3,9 +3,13 @@
 
 namespace rm::hal::sensor {
 
-/// Logical stream type within a device.
+/// Logical stream type within a camera or IMU device.
 /// Used as the primary key in StreamIndex and as a parameter to
 /// ICameraHAL::getIntrinsics() / getExtrinsics() / getIMUCalibration().
+///
+/// Note: LiDAR-specific stream types are NOT included here.
+/// I2DLidarHAL / I3DLidarHAL use their own data types (LaserScanData / PointCloudXYZI)
+/// and do not share this enumeration.
 enum class StreamType : uint8_t {
     // ── Image streams ────────────────────────────────────────────────────────
     COLOR      = 0x00,
@@ -18,10 +22,6 @@ enum class StreamType : uint8_t {
     GYRO       = 0x10,  ///< Gyroscope
     ACCEL      = 0x11,  ///< Accelerometer
     MOTION     = 0x12,  ///< Combined motion stream (some SDKs expose a single merged stream)
-
-    // ── Distance streams ─────────────────────────────────────────────────────
-    LIDAR      = 0x20,  ///< 3D point cloud (used in I3DLidarHAL context)
-    LASER_SCAN = 0x21,  ///< 2D laser scan (used in I2DLidarHAL context)
 
     UNKNOWN    = 0xFF,
 };
