@@ -1,3 +1,0 @@
-hal.compile_check 1 0.00091249
-hal.type_tests 1 0.00163416
----
