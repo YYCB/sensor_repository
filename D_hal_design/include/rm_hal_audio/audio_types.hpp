@@ -45,14 +45,24 @@ struct AudioFrame {
 /// Direction-of-arrival (DOA) result from a microphone array.
 struct DOAResult {
     float    azimuth_deg   = 0.f;   ///< 0 = forward-facing direction, clockwise positive
-    float    elevation_deg = 0.f;   ///< 0 = horizontal plane
+    /// Elevation angle in degrees above the horizontal plane.
+    /// NOTE: 2D microphone arrays (ReSpeaker 4-Mic / 6-Mic circular) cannot
+    /// estimate elevation; this field is always 0.0 for those devices.
+    float    elevation_deg = 0.f;
     float    confidence    = 0.f;   ///< [0, 1]
     rm::hal::SensorTimestamp timestamp;
 };
 
+/// Identifies the microphone array / audio device driver type.
+enum class AudioDeviceType : uint8_t {
+    ReSpeaker4Mic,  ///< ReSpeaker 4-Mic USB array with HID DOA (register 21)
+    ReSpeaker6Mic,  ///< ReSpeaker 6-Mic USB array with HID DOA
+    AlsaGeneric,    ///< Any ALSA-compatible microphone; no DOA capability
+};
+
 /// Audio capture configuration.
 struct AudioConfig {
-    std::string device_type  = "alsa_generic";  ///< "respeaker_4mic" | "respeaker_6mic" | "alsa_generic"
+    AudioDeviceType device_type  = AudioDeviceType::AlsaGeneric;
     std::string device_name  = "default";        ///< ALSA device string, e.g. "plughw:2,0"
     uint32_t    sample_rate  = 16000;            ///< Hz (16000 for speech; 48000 for music)
     uint8_t     channels     = 4;

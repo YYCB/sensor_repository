@@ -14,7 +14,7 @@ namespace rm::hal::sensor {
 ///   Generic ALSA microphone (no DOA capability)
 ///
 /// Lifecycle:
-///   Closed ──configure()──► Configured ──open()──► Ready ──startCapture()──► Capturing
+///   Closed ──configure()──► Configured ──open()──► Opened ──startStreaming()──► Streaming
 ///     ▲                                                                           │
 ///     └──────────────────────── close() ─────────────────────────────────────────┘
 ///   Faulted ◄── fault ◄── (any state)    Closed ◄── reset() ◄── Faulted

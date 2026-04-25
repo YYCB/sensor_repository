@@ -9,13 +9,24 @@
 namespace rm::hal {
 
 /// Device discovery metadata; returned by HALFactory::enumerateDevices().
+///
+/// Connection type of the physical link between the host and the device.
+enum class ConnectionType : uint8_t {
+    USB,      ///< USB 2.0 / 3.x
+    GMSL2,    ///< GMSL2 (Gigabit Multimedia Serial Link 2, e.g. NVIDIA Jetson camera connector)
+    Ethernet, ///< Gigabit / 100BASE-TX (e.g. Velodyne, Livox, GMSL bridge)
+    Serial,   ///< UART / RS-422 / RS-485 (e.g. YESENSE IMU, BlueSea serial variant)
+    Sim,      ///< Synthetic / simulation source (no physical link)
+    Unknown,  ///< Connection type could not be determined
+};
+
 struct DeviceInfo {
-    std::string type;              ///< Factory registration name ("orbbec", "bluesea", "sim", …)
-    std::string serial_number;     ///< Device serial number
-    std::string name;              ///< Human-readable model name (e.g. "Gemini 330", "VLP-16")
-    std::string connection;        ///< "usb" | "gmsl2" | "ethernet" | "serial" | "sim"
-    std::string port;              ///< Physical port identifier ("gmsl2-1", "/dev/video0", …)
-    std::string firmware_version;
+    std::string    type;              ///< Factory registration name ("orbbec", "bluesea", "sim", …)
+    std::string    serial_number;     ///< Device serial number
+    std::string    name;              ///< Human-readable model name (e.g. "Gemini 330", "VLP-16")
+    ConnectionType connection = ConnectionType::Unknown;
+    std::string    port;              ///< Physical port identifier ("gmsl2-1", "/dev/video0", …)
+    std::string    firmware_version;
 };
 
 using DeviceChangedCallback = std::function<void(
@@ -68,10 +79,20 @@ public:
     }
 
     /// Enumerate all available devices across every registered driver type.
+    ///
+    /// Implementation note: the enumerator functions are called *outside* the
+    /// internal mutex to avoid a potential deadlock when an enumerator
+    /// re-enters registerType() or registerEnumerator() (e.g. during lazy
+    /// hot-plug enumeration).  The enumerator map is snapshot-copied under the
+    /// lock; individual enumerator calls run unlocked.
     std::vector<DeviceInfo> enumerateDevices() const {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::unordered_map<std::string, Enumerator> snapshot;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            snapshot = enumerators_;
+        }
         std::vector<DeviceInfo> all;
-        for (const auto& [name, fn] : enumerators_) {
+        for (const auto& [name, fn] : snapshot) {
             auto devs = fn();
             all.insert(all.end(), devs.begin(), devs.end());
         }

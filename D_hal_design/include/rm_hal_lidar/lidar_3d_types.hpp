@@ -28,9 +28,17 @@ struct PointXYZI {
 };
 
 /// A complete 3D LiDAR scan packet.
+///
+/// valid_count vs points.size():
+///   points always has exactly valid_count elements — there are no padding or
+///   invalid entries in the vector.  A point is included only when its range
+///   is within [Lidar3DConfig::range_min, Lidar3DConfig::range_max] and its
+///   intensity >= Lidar3DConfig::min_intensity.  Callers may iterate over
+///   points directly without checking valid_count, but valid_count is provided
+///   as a convenience for logging and quick sanity checks.
 struct PointCloudXYZI {
     std::vector<PointXYZI>   points;
-    int                      valid_count    = 0;
+    int                      valid_count    = 0;   ///< Equal to points.size() after assembly
     rm::hal::SensorTimestamp timestamp;               ///< Start-of-scan timestamp
     double                   scan_duration_s = 0.0;  ///< Duration of this scan packet (s)
     uint32_t                 sequence        = 0;    ///< Monotonic scan counter
@@ -55,7 +63,13 @@ struct Lidar3DConfig {
 
     // ── Network ───────────────────────────────────────────────────────────────
     std::string host;
-    int         port       = 2368;              ///< Velodyne default data port; Livox: 56000
+    /// UDP data port.  Default is the Velodyne value (2368).
+    /// IMPORTANT: different hardware uses different defaults — always use
+    /// defaultsFor(model) instead of constructing Lidar3DConfig directly when
+    /// targeting a specific hardware model.
+    ///   Velodyne VLP-16 / VLP-32C / HDL-64E : 2368
+    ///   Livox Mid-360                        : 56000
+    int         port       = 2368;
 
     // ── Return mode ───────────────────────────────────────────────────────────
     LidarReturnMode return_mode = LidarReturnMode::Strongest;
@@ -77,6 +91,38 @@ struct Lidar3DConfig {
     LidarModel  model             = LidarModel::VLP_16;
     /// Optional free-form name used when model == LidarModel::Custom.
     std::string custom_model_name;
+
+    /// Returns a Lidar3DConfig pre-populated with the correct defaults for
+    /// the specified hardware model (port, range_max, target_fps, etc.).
+    /// Always prefer this factory method over default-constructing Lidar3DConfig
+    /// when the target hardware is known at configuration time.
+    static Lidar3DConfig defaultsFor(LidarModel m) noexcept {
+        Lidar3DConfig cfg;
+        cfg.model = m;
+        switch (m) {
+            case LidarModel::VLP_16:
+                cfg.port      = 2368;
+                cfg.range_max = 100.0;
+                break;
+            case LidarModel::VLP_32C:
+                cfg.port      = 2368;
+                cfg.range_max = 200.0;
+                break;
+            case LidarModel::HDL_64E:
+                cfg.port      = 2368;
+                cfg.range_max = 120.0;
+                break;
+            case LidarModel::Livox_Mid360:
+                cfg.port      = 56000;
+                cfg.range_max = 70.0;
+                break;
+            case LidarModel::Sim:
+            case LidarModel::Custom:
+            default:
+                break;
+        }
+        return cfg;
+    }
 };
 
 }  // namespace rm::hal::sensor

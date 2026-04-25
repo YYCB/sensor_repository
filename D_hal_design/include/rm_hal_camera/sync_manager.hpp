@@ -53,8 +53,18 @@ public:
     /// Maps to Orbbec device->triggerCapture().
     virtual bool triggerOnce() = 0;
 
-    /// Returns true when the device (in Secondary mode) has received a trigger
-    /// from the Primary and is producing synchronised output.
+    /// Returns true when the device is producing hardware-synchronised output.
+    ///
+    /// Mode-specific semantics:
+    ///   Secondary / SecondarySynced — returns true when a valid trigger signal
+    ///       has been received from the Primary and the output frame rate is
+    ///       locked to the trigger.
+    ///   Primary — returns true when the output trigger signal is being driven
+    ///       (i.e. after setSyncConfig succeeded and the device is streaming).
+    ///   FreeRun / Standalone — always returns false; these modes have no
+    ///       external synchronisation dependency.
+    ///   SoftwareTrigger / HardwareTrigger — returns true when the last
+    ///       triggered capture completed successfully.
     virtual bool isSynced() const = 0;
 };
 

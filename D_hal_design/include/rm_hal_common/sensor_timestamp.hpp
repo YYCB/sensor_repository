@@ -23,16 +23,25 @@ struct SensorTimestamp {
     TimestampDomain domain = TimestampDomain::System;
 
     bool operator<(const SensorTimestamp& o)  const noexcept { return ns < o.ns; }
+    bool operator>(const SensorTimestamp& o)  const noexcept { return o < *this; }
+    bool operator<=(const SensorTimestamp& o) const noexcept { return !(o < *this); }
+    bool operator>=(const SensorTimestamp& o) const noexcept { return !(*this < o); }
     bool operator==(const SensorTimestamp& o) const noexcept {
         return ns == o.ns && domain == o.domain;
     }
     bool operator!=(const SensorTimestamp& o) const noexcept { return !(*this == o); }
 
+    /// Signed nanosecond delta: (this - other).
+    /// Only meaningful when both timestamps share the same domain.
+    int64_t deltaNs(const SensorTimestamp& o) const noexcept {
+        return static_cast<int64_t>(ns) - static_cast<int64_t>(o.ns);
+    }
+
     /// Signed microsecond delta: (this - other).
     /// Only meaningful when both timestamps share the same domain;
     /// calling across different domains produces an unspecified result.
     int64_t deltaUs(const SensorTimestamp& o) const noexcept {
-        return (static_cast<int64_t>(ns) - static_cast<int64_t>(o.ns)) / 1000;
+        return deltaNs(o) / 1000;
     }
 };
 

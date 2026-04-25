@@ -42,16 +42,66 @@ enum class PixelEncoding : uint8_t {
 };
 
 /// Returns the number of bytes per pixel for packed formats.
-/// Returns 0 for compressed or variable-length formats (MJPEG, H264, H265).
-int bytesPerPixel(PixelEncoding enc) noexcept;
+/// Returns 0 for compressed or variable-length formats (MJPEG, H264, H265),
+/// and for planar / semi-planar YUV formats (NV12, NV21, I420, M420) where
+/// stride calculation requires knowledge of the plane layout.
+inline int bytesPerPixel(PixelEncoding enc) noexcept {
+    switch (enc) {
+        case PixelEncoding::RGB8:   return 3;
+        case PixelEncoding::BGR8:   return 3;
+        case PixelEncoding::RGBA8:  return 4;
+        case PixelEncoding::BGRA8:  return 4;
+        case PixelEncoding::YUYV:   return 2;
+        case PixelEncoding::UYVY:   return 2;
+        case PixelEncoding::NV12:   return 0;  // planar; use height * stride * 3/2
+        case PixelEncoding::NV21:   return 0;
+        case PixelEncoding::I420:   return 0;
+        case PixelEncoding::M420:   return 0;
+        case PixelEncoding::MONO8:  return 1;
+        case PixelEncoding::MONO16: return 2;
+        case PixelEncoding::Z16:    return 2;
+        case PixelEncoding::Z32F:   return 4;
+        case PixelEncoding::RAW16:  return 2;
+        case PixelEncoding::MJPEG:  return 0;
+        case PixelEncoding::H264:   return 0;
+        case PixelEncoding::H265:   return 0;
+        case PixelEncoding::CUSTOM: return 0;
+        default:                    return 0;
+    }
+}
 
 /// Returns true for formats that require a software or hardware decoder
 /// before individual pixel access is possible.
 inline bool isCompressed(PixelEncoding enc) noexcept {
-    return enc >= PixelEncoding::MJPEG && enc <= PixelEncoding::H265;
+    return enc == PixelEncoding::MJPEG
+        || enc == PixelEncoding::H264
+        || enc == PixelEncoding::H265;  // H265 == HEVC alias
 }
 
 /// Returns a short ASCII label (e.g. "BGR8", "Z16", "MJPEG"). Never returns nullptr.
-const char* pixelEncodingToString(PixelEncoding enc) noexcept;
+inline const char* pixelEncodingToString(PixelEncoding enc) noexcept {
+    switch (enc) {
+        case PixelEncoding::RGB8:   return "RGB8";
+        case PixelEncoding::BGR8:   return "BGR8";
+        case PixelEncoding::RGBA8:  return "RGBA8";
+        case PixelEncoding::BGRA8:  return "BGRA8";
+        case PixelEncoding::YUYV:   return "YUYV";
+        case PixelEncoding::UYVY:   return "UYVY";
+        case PixelEncoding::NV12:   return "NV12";
+        case PixelEncoding::NV21:   return "NV21";
+        case PixelEncoding::I420:   return "I420";
+        case PixelEncoding::M420:   return "M420";
+        case PixelEncoding::MONO8:  return "MONO8";
+        case PixelEncoding::MONO16: return "MONO16";
+        case PixelEncoding::Z16:    return "Z16";
+        case PixelEncoding::Z32F:   return "Z32F";
+        case PixelEncoding::MJPEG:  return "MJPEG";
+        case PixelEncoding::H264:   return "H264";
+        case PixelEncoding::H265:   return "H265";
+        case PixelEncoding::RAW16:  return "RAW16";
+        case PixelEncoding::CUSTOM: return "CUSTOM";
+        default:                    return "UNKNOWN";
+    }
+}
 
 }  // namespace rm::hal::sensor

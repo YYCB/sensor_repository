@@ -56,15 +56,28 @@ struct StreamProfile {
             && fps == o.fps && format == o.format;
     }
 
-    /// Returns true if all non-zero fields in `req` match this profile (0 = wildcard).
+    /// Returns true if all non-zero / non-wildcard fields in `req` match this profile.
+    ///
+    /// Wildcard rules:
+    ///   stream.type == StreamType::UNKNOWN  →  any stream type matches
+    ///   width  == 0                         →  any width matches
+    ///   height == 0                         →  any height matches
+    ///   fps    == 0                         →  any fps matches
+    ///   match_any_format == true            →  any pixel format matches
+    ///
+    /// NOTE: To explicitly request BGR8 (rather than using it as a wildcard),
+    ///       set req.format = PixelEncoding::BGR8 and req.match_any_format = false.
     bool partialMatch(const StreamProfile& req) const noexcept {
         if (req.stream.type != StreamType::UNKNOWN && stream != req.stream) return false;
         if (req.width  != 0 && width  != req.width)  return false;
         if (req.height != 0 && height != req.height) return false;
         if (req.fps    != 0 && fps    != req.fps)    return false;
-        if (req.format != PixelEncoding::BGR8 && format != req.format) return false;
+        if (!req.match_any_format && format != req.format) return false;
         return true;
     }
+
+    /// When true, partialMatch() accepts any pixel format (format field is ignored).
+    bool match_any_format = false;
 };
 
 // ── Hardware option descriptor ────────────────────────────────────────────────
@@ -92,10 +105,15 @@ struct OptionInfo {
 
 /// A set of synchronised frames from a single camera device.
 /// Delivered via ICameraHAL::setFrameSetCallback().
+///
+/// Stereo IR support: devices with two IR sensors (e.g. Orbbec Gemini 330)
+/// populate both ir_left and ir_right.  Single-IR devices set only ir_left;
+/// ir_right remains nullptr.  Callers should check each pointer before use.
 struct FrameSet {
     std::shared_ptr<const ImageFrame> color;
     std::shared_ptr<const ImageFrame> depth;
-    std::shared_ptr<const ImageFrame> ir;        ///< Nullable — present only if IR stream enabled
+    std::shared_ptr<const ImageFrame> ir_left;   ///< Left IR frame (or sole IR frame for single-IR devices)
+    std::shared_ptr<const ImageFrame> ir_right;  ///< Right IR frame; nullptr if device has only one IR sensor
     rm::hal::SensorTimestamp          timestamp; ///< Representative aligned timestamp
 };
 
@@ -140,6 +158,9 @@ struct CameraConfig {
     bool enable_ir = false;
 
     // ── Streaming behaviour ───────────────────────────────────────────────────
+    /// Number of frames held in the HAL-internal ring buffer per stream.
+    /// Valid range: [2, 32].  Values below 2 are clamped to 2 by the driver.
+    /// Larger values reduce frame-drop risk under CPU load at the cost of latency.
     int                ring_buffer_depth    = 4;
     AlignMode          align_mode           = AlignMode::None;
     FrameAggregateMode frame_aggregate_mode = FrameAggregateMode::Any;
@@ -150,7 +171,7 @@ struct CameraConfig {
     SyncMode sync_mode = SyncMode::FreeRun;
 
     // ── GMSL-specific ─────────────────────────────────────────────────────────
-    std::string usb_port;                         ///< GMSL channel id: "gmsl2-1", "gmsl2-3", …
+    std::string gmsl_port;                        ///< GMSL channel identifier: "gmsl2-1", "gmsl2-3", …
     bool        enable_gmsl_trigger = false;
     float       gmsl_trigger_fps_hz = 30.0f;      ///< GMSL trigger frequency in Hz
 

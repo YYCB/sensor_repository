@@ -42,14 +42,22 @@ struct CameraExtrinsics {
 // ── IMU calibration ───────────────────────────────────────────────────────────
 
 /// Axis-level calibration parameters for a camera-embedded IMU stream.
-/// Returned by ICameraHAL::getIMUCalibration(StreamType::GYRO | ACCEL).
+/// Returned by ICameraHAL::getIMUCalibration(StreamIndex{StreamType::GYRO, 0})
+/// or ICameraHAL::getIMUCalibration(StreamIndex{StreamType::ACCEL, 0}).
 struct IMUCalibration {
     StreamType stream = StreamType::GYRO;   ///< StreamType::GYRO or StreamType::ACCEL
-    /// 3×4 row-major matrix: [scale_3x3 | bias_3x1].
-    /// Multiply raw int32 reading by this to get corrected SI output.
+    /// 3×4 row-major calibration matrix: [R_3x3 | b_3x1].
+    ///
+    /// Correction formula:
+    ///   corrected_SI = R * raw_int32 + b
+    ///
+    /// where R = scale_bias[0..8] (3×3 row-major scale / cross-axis matrix)
+    ///       b = scale_bias[9..11] (3×1 bias vector, same SI units as output)
+    ///
+    /// For accelerometers: output is m/s².  For gyroscopes: output is rad/s.
     float scale_bias[12]     = {};
-    float noise_variances[3] = {};  ///< Measurement noise variance [x,y,z]
-    float bias_variances[3]  = {};  ///< Bias random-walk variance [x,y,z]
+    float noise_variances[3] = {};  ///< Measurement noise variance [x,y,z] (SI²/Hz)
+    float bias_variances[3]  = {};  ///< Bias random-walk variance [x,y,z] (SI²·Hz)
     bool  valid              = false;
 };
 
@@ -61,6 +69,11 @@ struct DepthMetadata {
     float depth_scale      = 0.001f;  ///< 1 LSB → metres (Orbbec default: 0.001)
     float depth_min_meters = 0.1f;
     float depth_max_meters = 10.0f;
+    /// False when depth calibration data is unavailable (device not yet opened,
+    /// or the SDK did not expose scale information).  When false, depth_scale
+    /// retains its default value 0.001 as a best-effort fallback — callers
+    /// should log a warning rather than treating the value as authoritative.
+    bool  valid            = false;
 };
 
 }  // namespace rm::hal::sensor

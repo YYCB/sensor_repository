@@ -30,7 +30,9 @@ struct Lidar2DConfig {
     // ── Scan parameters ───────────────────────────────────────────────────────
     int           scan_frequency_hz = 10;
     LidarScanMode scan_mode         = LidarScanMode::Standard;
-    int           angle_resolution  = 100;    ///< 0.01° units; 100 = 1.00°
+    /// Angular resolution in degrees between adjacent scan points.
+    /// Typical values: 1.0° (standard), 0.5° (high-res), 2.0° (low-res).
+    float         angle_resolution_deg = 1.0f;
     int           rpm               = 600;    ///< Motor speed
 
     // ── BlueSea protocol flags ────────────────────────────────────────────────
@@ -46,7 +48,10 @@ struct Lidar2DConfig {
     // ── Filtering ─────────────────────────────────────────────────────────────
     bool  enable_intensity_filter = false;
     float min_intensity           = 0.f;
-    int   mask                    = 0;         ///< Angular sector bitmask to suppress
+    int   mask                    = 0;         ///< Angular sector bitmask to suppress (1 bit = 1°; bit 0 = 0°)
+    /// Minimum number of consecutive valid points required to retain a scan
+    /// segment.  Isolated returns within a gap of fewer than error_circle
+    /// points are treated as noise and discarded.  Set to 0 to disable.
     int   error_circle            = 3;
     bool  with_deshadow           = false;
 };

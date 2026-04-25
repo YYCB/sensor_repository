@@ -47,7 +47,34 @@ enum class ErrorCode : int32_t {
 };
 
 /// Returns a short human-readable label for an ErrorCode. Never returns nullptr.
-const char* errorCodeToString(ErrorCode code) noexcept;
+inline const char* errorCodeToString(ErrorCode code) noexcept {
+    switch (code) {
+        case ErrorCode::OK:                     return "OK";
+        case ErrorCode::UNKNOWN:                return "UNKNOWN";
+        case ErrorCode::NOT_IMPLEMENTED:        return "NOT_IMPLEMENTED";
+        case ErrorCode::DEVICE_NOT_FOUND:       return "DEVICE_NOT_FOUND";
+        case ErrorCode::DEVICE_BUSY:            return "DEVICE_BUSY";
+        case ErrorCode::DEVICE_DISCONNECTED:    return "DEVICE_DISCONNECTED";
+        case ErrorCode::INVALID_STATE:          return "INVALID_STATE";
+        case ErrorCode::ALREADY_OPEN:           return "ALREADY_OPEN";
+        case ErrorCode::NOT_OPEN:               return "NOT_OPEN";
+        case ErrorCode::INVALID_CONFIG:         return "INVALID_CONFIG";
+        case ErrorCode::UNSUPPORTED_FORMAT:     return "UNSUPPORTED_FORMAT";
+        case ErrorCode::UNSUPPORTED_RESOLUTION: return "UNSUPPORTED_RESOLUTION";
+        case ErrorCode::UNSUPPORTED_FPS:        return "UNSUPPORTED_FPS";
+        case ErrorCode::TIMEOUT:                return "TIMEOUT";
+        case ErrorCode::IO_ERROR:               return "IO_ERROR";
+        case ErrorCode::FRAME_DROPPED:          return "FRAME_DROPPED";
+        case ErrorCode::CRC_ERROR:              return "CRC_ERROR";
+        case ErrorCode::BUFFER_OVERFLOW:        return "BUFFER_OVERFLOW";
+        case ErrorCode::SDK_ERROR:              return "SDK_ERROR";
+        case ErrorCode::SDK_NOT_INITIALIZED:    return "SDK_NOT_INITIALIZED";
+        case ErrorCode::FIRMWARE_MISMATCH:      return "FIRMWARE_MISMATCH";
+        case ErrorCode::PERMISSION_DENIED:      return "PERMISSION_DENIED";
+        case ErrorCode::RESOURCE_EXHAUSTED:     return "RESOURCE_EXHAUSTED";
+        default:                                return "UNKNOWN";
+    }
+}
 
 /// Extended error information.
 struct ErrorInfo {

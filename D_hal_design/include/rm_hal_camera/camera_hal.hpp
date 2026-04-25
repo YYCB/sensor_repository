@@ -42,12 +42,19 @@ public:
     // ── Polling API ───────────────────────────────────────────────────────────
     // Active when no callback is registered for the corresponding stream.
     // Returns false and sets health().error_msg if a callback is registered.
+    //
+    // timeout_ms controls blocking behaviour:
+    //   0   — non-blocking: return false immediately if no new frame is available.
+    //   > 0 — block for up to timeout_ms milliseconds waiting for a new frame;
+    //         return false on timeout.
+    //  -1   — block indefinitely until a frame arrives (use with caution).
+    // The same timeout semantics apply to getDepthFrame, getIRFrame, and getPointCloud.
 
-    virtual bool getColorFrame(ImageFrame& out) = 0;
-    virtual bool getDepthFrame(ImageFrame& out) = 0;
-    virtual bool getIRFrame   (ImageFrame& out) = 0;
+    virtual bool getColorFrame(ImageFrame& out, int timeout_ms = 0) = 0;
+    virtual bool getDepthFrame(ImageFrame& out, int timeout_ms = 0) = 0;
+    virtual bool getIRFrame   (ImageFrame& out, int timeout_ms = 0) = 0;
     /// Get the latest point cloud (built by SDK PointCloudFilter or HAL).
-    virtual bool getPointCloud(PointCloud& out) = 0;
+    virtual bool getPointCloud(PointCloud& out, int timeout_ms = 0) = 0;
 
     // ── Callback API ──────────────────────────────────────────────────────────
     // Setting a callback disables polling for the corresponding stream.
@@ -71,9 +78,11 @@ public:
 
     // ── Calibration ───────────────────────────────────────────────────────────
 
-    virtual CameraIntrinsics getIntrinsics(StreamType stream) const = 0;
-    virtual CameraExtrinsics getExtrinsics(StreamType from, StreamType to) const = 0;
-    virtual IMUCalibration   getIMUCalibration(StreamType imu_stream) const = 0;
+    virtual CameraIntrinsics getIntrinsics(StreamIndex stream) const = 0;
+    virtual CameraExtrinsics getExtrinsics(StreamIndex from, StreamIndex to) const = 0;
+    /// Retrieve calibration for a camera-embedded IMU stream.
+    /// Pass StreamIndex{StreamType::GYRO, 0} or StreamIndex{StreamType::ACCEL, 0}.
+    virtual IMUCalibration   getIMUCalibration(StreamIndex imu_stream) const = 0;
     virtual DepthMetadata    getDepthMetadata() const = 0;
 
     /// Load user-supplied calibration from a YAML file, overriding factory calibration.

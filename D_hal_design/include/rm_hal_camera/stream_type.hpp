@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 
 namespace rm::hal::sensor {
 
@@ -44,3 +45,18 @@ struct StreamIndex {
 };
 
 }  // namespace rm::hal::sensor
+
+// ── std::hash specialisation ─────────────────────────────────────────────────
+// Enables StreamIndex to be used as an unordered_map / unordered_set key.
+
+namespace std {
+template<>
+struct hash<rm::hal::sensor::StreamIndex> {
+    std::size_t operator()(const rm::hal::sensor::StreamIndex& s) const noexcept {
+        // Combine StreamType (uint8_t) and index (int) into a single hash.
+        std::size_t h = static_cast<std::size_t>(s.type);
+        h ^= std::hash<int>{}(s.index) + 0x9e3779b9u + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+}  // namespace std

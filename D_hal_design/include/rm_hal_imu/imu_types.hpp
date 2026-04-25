@@ -115,13 +115,22 @@ struct ImuData {
 // ── IMU device information ────────────────────────────────────────────────────
 
 /// Noise and calibration metadata — used to configure an EKF / UKF.
+/// Returned by IImuHAL::getDeviceInfo() after the device is opened.
 struct ImuDeviceInfo {
+    // ── Device identity ───────────────────────────────────────────────────────
+    std::string model;             ///< Device model string, e.g. "YIS300-IMU"
+    std::string serial_number;     ///< Device serial number (from DataID 0xA0 if available)
+    std::string firmware_version;  ///< Firmware version string (from DataID 0xA1 if available)
+
+    // ── Active ranges (reflecting ImuConfig after open) ───────────────────────
     AccelRange accel_range;
     GyroRange  gyro_range;
-    double     accel_noise_density      = 1e-4;
-    double     gyro_noise_density       = 1e-4;
-    double     accel_random_walk        = 1e-4;
-    double     gyro_random_walk         = 1e-4;
+
+    // ── Factory-calibrated noise parameters ──────────────────────────────────
+    double     accel_noise_density      = 1e-4;  ///< m/s²/√Hz
+    double     gyro_noise_density       = 1e-4;  ///< rad/s/√Hz
+    double     accel_random_walk        = 1e-4;  ///< m/s²·√Hz (velocity random walk)
+    double     gyro_random_walk         = 1e-4;  ///< rad/s·√Hz (angular random walk)
     double     reference_temperature_c  = 25.0;  ///< Temperature at calibration time
 };
 
