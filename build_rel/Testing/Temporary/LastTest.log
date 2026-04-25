@@ -1,0 +1,61 @@
+Start testing: Apr 25 10:05 UTC
+----------------------------------------------------------
+1/2 Testing: hal.compile_check
+1/2 Test: hal.compile_check
+Command: "/home/runner/work/sensor_repository/sensor_repository/build_rel/D_hal_design/tests/test_compile"
+Directory: /home/runner/work/sensor_repository/sensor_repository/build_rel/D_hal_design/tests
+"hal.compile_check" start time: Apr 25 10:05 UTC
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"hal.compile_check" end time: Apr 25 10:05 UTC
+"hal.compile_check" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/2 Testing: hal.type_tests
+2/2 Test: hal.type_tests
+Command: "/home/runner/work/sensor_repository/sensor_repository/build_rel/D_hal_design/tests/test_types"
+Directory: /home/runner/work/sensor_repository/sensor_repository/build_rel/D_hal_design/tests
+"hal.type_tests" start time: Apr 25 10:05 UTC
+Output:
+----------------------------------------------------------
+=== rm_hal type tests ===
+  sensor_timestamp ...
+  sensor_timestamp OK
+  health_status ...
+  health_status OK
+  bytes_per_pixel ...
+  bytes_per_pixel OK
+  is_compressed ...
+  is_compressed OK
+  pixel_encoding_to_string ...
+  pixel_encoding_to_string OK
+  error_code_to_string ...
+  error_code_to_string OK
+  lidar3d_defaults ...
+  lidar3d_defaults OK
+  stream_profile_partial_match ...
+  stream_profile_partial_match OK
+  doa_result_defaults ...
+  doa_result_defaults OK
+  imu_device_info_defaults ...
+  imu_device_info_defaults OK
+  audio_frame_total_samples ...
+  audio_frame_total_samples OK
+  stream_index_operators ...
+  stream_index_operators OK
+  stream_index_hash ...
+  stream_index_hash OK
+=== All tests passed ===
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"hal.type_tests" end time: Apr 25 10:05 UTC
+"hal.type_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Apr 25 10:05 UTC
