@@ -28,9 +28,11 @@ struct SensorTimestamp {
     }
     bool operator!=(const SensorTimestamp& o) const noexcept { return !(*this == o); }
 
-    /// Signed microsecond delta: (this - other). Only meaningful when both share the same domain.
+    /// Signed microsecond delta: (this - other).
+    /// Only meaningful when both timestamps share the same domain;
+    /// calling across different domains produces an unspecified result.
     int64_t deltaUs(const SensorTimestamp& o) const noexcept {
-        return static_cast<int64_t>(ns - o.ns) / 1000;
+        return (static_cast<int64_t>(ns) - static_cast<int64_t>(o.ns)) / 1000;
     }
 };
 

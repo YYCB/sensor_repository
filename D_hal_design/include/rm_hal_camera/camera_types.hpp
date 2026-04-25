@@ -1,6 +1,7 @@
 #pragma once
 #include "rm_hal_camera/pixel_encoding.hpp"
 #include "rm_hal_camera/stream_type.hpp"
+#include "rm_hal_camera/sync_manager.hpp"
 #include "rm_hal_common/sensor_timestamp.hpp"
 #include <cstdint>
 #include <functional>
@@ -56,7 +57,14 @@ struct StreamProfile {
     }
 
     /// Returns true if all non-zero fields in `req` match this profile (0 = wildcard).
-    bool partialMatch(const StreamProfile& req) const noexcept;
+    bool partialMatch(const StreamProfile& req) const noexcept {
+        if (req.stream.type != StreamType::UNKNOWN && stream != req.stream) return false;
+        if (req.width  != 0 && width  != req.width)  return false;
+        if (req.height != 0 && height != req.height) return false;
+        if (req.fps    != 0 && fps    != req.fps)    return false;
+        if (req.format != PixelEncoding::BGR8 && format != req.format) return false;
+        return true;
+    }
 };
 
 // ── Hardware option descriptor ────────────────────────────────────────────────
@@ -91,6 +99,24 @@ struct FrameSet {
     rm::hal::SensorTimestamp          timestamp; ///< Representative aligned timestamp
 };
 
+// ── Camera configuration enumerations ────────────────────────────────────────
+
+/// Depth-colour alignment mode applied by the SDK or HAL before frame delivery.
+enum class AlignMode : uint8_t {
+    None,           ///< No alignment — depth and colour are in their native resolution/FOV
+    DepthToColor,   ///< Depth frame is warped to match the colour sensor FOV
+    ColorToDepth,   ///< Colour frame is warped to match the depth sensor FOV
+};
+
+/// Frame aggregation policy for multi-stream capture.
+/// Controls which stream combination triggers a FrameSet delivery.
+enum class FrameAggregateMode : uint8_t {
+    FullFrame,   ///< Deliver FrameSet only when ALL enabled streams have a new frame
+    ColorFrame,  ///< Deliver whenever a new colour frame arrives (depth/IR may be stale)
+    Any,         ///< Deliver on any new frame from any enabled stream
+    Disabled,    ///< Do not aggregate; deliver each stream's frames independently
+};
+
 // ── Camera configuration ──────────────────────────────────────────────────────
 
 struct CameraConfig {
@@ -114,17 +140,19 @@ struct CameraConfig {
     bool enable_ir = false;
 
     // ── Streaming behaviour ───────────────────────────────────────────────────
-    int         ring_buffer_depth    = 4;
-    std::string align_mode           = "none";    ///< "none"|"depth_to_color"|"color_to_depth"
-    std::string frame_aggregate_mode = "ANY";     ///< "full_frame"|"color_frame"|"ANY"|"disable"
+    int                ring_buffer_depth    = 4;
+    AlignMode          align_mode           = AlignMode::None;
+    FrameAggregateMode frame_aggregate_mode = FrameAggregateMode::Any;
 
     // ── Synchronisation ───────────────────────────────────────────────────────
-    std::string sync_mode = "free_run";           ///< "free_run"|"primary"|"secondary"|"hardware_triggering"
+    /// Initial hardware sync mode applied during open().
+    /// Can be changed at runtime via ICameraHAL::getSyncManager()->setSyncConfig().
+    SyncMode sync_mode = SyncMode::FreeRun;
 
     // ── GMSL-specific ─────────────────────────────────────────────────────────
     std::string usb_port;                         ///< GMSL channel id: "gmsl2-1", "gmsl2-3", …
     bool        enable_gmsl_trigger = false;
-    int         gmsl_trigger_fps    = 3000;       ///< Units: 0.01 Hz; 3000 = 30.00 Hz
+    float       gmsl_trigger_fps_hz = 30.0f;      ///< GMSL trigger frequency in Hz
 
     // ── V4L2-specific ─────────────────────────────────────────────────────────
     std::string v4l2_node;                        ///< e.g. "/dev/video0"

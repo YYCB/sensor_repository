@@ -17,10 +17,9 @@ namespace rm::hal {
 class ISensorHAL : public IHardwareDevice {
 public:
     /// Recover from Faulted state back to Closed.
-    /// Default: delegates to close().
+    /// Default: delegates to close() and propagates its return value.
     virtual bool reset() {
-        close();
-        return true;
+        return close();
     }
 };
 

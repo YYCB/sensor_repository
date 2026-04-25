@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,6 +32,10 @@ using DeviceChangedCallback = std::function<void(
 ///
 /// Usage:
 ///   auto cam = CameraFactory::instance().create("orbbec");
+///
+/// Thread safety: registerType(), registerEnumerator(), create(), and
+/// enumerateDevices() are all protected by an internal mutex and may be
+/// called concurrently from multiple threads.
 template<typename Interface>
 class HALFactory {
 public:
@@ -44,23 +49,27 @@ public:
 
     /// Register a driver constructor under a string key.
     void registerType(const std::string& type_name, Creator creator) {
+        std::lock_guard<std::mutex> lock(mutex_);
         creators_[type_name] = std::move(creator);
     }
 
     /// Register a static device enumerator for a driver type (optional).
     void registerEnumerator(const std::string& type_name, Enumerator enumerator) {
+        std::lock_guard<std::mutex> lock(mutex_);
         enumerators_[type_name] = std::move(enumerator);
     }
 
     /// Create a new driver instance for the given type key.
     /// Returns nullptr if the key is not registered.
     std::unique_ptr<Interface> create(const std::string& type_name) const {
+        std::lock_guard<std::mutex> lock(mutex_);
         auto it = creators_.find(type_name);
         return (it != creators_.end()) ? it->second() : nullptr;
     }
 
     /// Enumerate all available devices across every registered driver type.
     std::vector<DeviceInfo> enumerateDevices() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::vector<DeviceInfo> all;
         for (const auto& [name, fn] : enumerators_) {
             auto devs = fn();
@@ -70,14 +79,18 @@ public:
     }
 
     /// Register a callback for hot-plug device add / remove events.
+    /// NOTE: Hot-plug event delivery is NOT YET IMPLEMENTED (reserved for V2.0).
+    /// The callback is stored but never invoked by this version of the factory.
     void setDeviceChangedCallback(DeviceChangedCallback cb) {
+        std::lock_guard<std::mutex> lock(mutex_);
         device_changed_cb_ = std::move(cb);
     }
 
     /// Enable POSIX shared-memory process mutex to prevent concurrent device
     /// access from multiple processes (e.g. ROS composable container + debug tool).
-    /// Maps to Orbbec orb_device_lock pattern.
+    /// NOTE: NOT YET IMPLEMENTED (reserved for V2.0).
     void enableProcessLock(const std::string& lock_name = "rmos_hal_lock") {
+        std::lock_guard<std::mutex> lock(mutex_);
         process_lock_name_    = lock_name;
         process_lock_enabled_ = true;
     }
@@ -87,6 +100,7 @@ private:
     HALFactory(const HALFactory&) = delete;
     HALFactory& operator=(const HALFactory&) = delete;
 
+    mutable std::mutex                          mutex_;
     std::unordered_map<std::string, Creator>    creators_;
     std::unordered_map<std::string, Enumerator> enumerators_;
     DeviceChangedCallback                       device_changed_cb_;

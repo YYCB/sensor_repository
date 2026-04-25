@@ -21,13 +21,16 @@ enum class AudioSampleFormat : uint8_t {
 ///   Original: `const int16_t* data` — raw pointer that aliases the ALSA mmap buffer.
 ///   Problem:  If a callback holds AudioFrame past its call scope, the ALSA buffer
 ///             is returned to the kernel by snd_pcm_readi() causing a dangling reference.
-///   Fix:      `shared_ptr<const vector<int16_t>>` — the HAL copies data once before
+///   Fix:      `shared_ptr<const vector<uint8_t>>` — the HAL copies raw bytes once before
 ///             enqueue, then creates a shared_ptr. Callbacks may safely extend lifetime
 ///             by holding their own copy of the shared_ptr.
+///   Interpretation: callers must cast / reinterpret the byte buffer according to
+///             AudioFrame::format (e.g. reinterpret_cast<const int16_t*> for S16_LE).
 ///   Cost:     One memcpy per period (~8 KB for 1024 frames × 4 channels × 2 B).
 struct AudioFrame {
-    /// PCM samples: interleaved channels [ch0_s0, ch1_s0, …, ch0_s1, ch1_s1, …]
-    std::shared_ptr<const std::vector<int16_t>> data;
+    /// PCM samples stored as raw bytes: interleaved channels [ch0_s0, ch1_s0, …]
+    /// Interpret according to AudioFrame::format.
+    std::shared_ptr<const std::vector<uint8_t>> data;
     size_t            frame_count  = 0;    ///< Samples per channel in this period
     uint8_t           channels     = 0;
     uint32_t          sample_rate  = 0;    ///< Hz

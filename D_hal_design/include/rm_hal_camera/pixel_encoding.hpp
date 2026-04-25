@@ -32,9 +32,9 @@ enum class PixelEncoding : uint8_t {
     H265   = 0x42,
     HEVC   = H265,   ///< Alias for H265
 
-    // ── IR alias names used by some vendor SDKs (0x50–0x5F) ─────────────────
-    Y8     = 0x50,   ///< Equivalent to MONO8  (OB_FORMAT_Y8)
-    Y16    = 0x51,   ///< Equivalent to MONO16 (OB_FORMAT_Y16)
+    // ── IR alias names used by some vendor SDKs ──────────────────────────────
+    Y8     = MONO8,   ///< Alias for MONO8  (OB_FORMAT_Y8 maps to 8-bit luminance)
+    Y16    = MONO16,  ///< Alias for MONO16 (OB_FORMAT_Y16 maps to 16-bit luminance)
 
     // ── Raw / custom (0xF0–0xFF) ─────────────────────────────────────────────
     RAW16  = 0xF0,   ///< Bayer-pattern 16-bit raw
