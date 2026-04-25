@@ -32,6 +32,9 @@ struct Lidar2DConfig {
     LidarScanMode scan_mode         = LidarScanMode::Standard;
     /// Angular resolution in degrees between adjacent scan points.
     /// Typical values: 1.0° (standard), 0.5° (high-res), 2.0° (low-res).
+    /// Relationship to output: LaserScanData::angle_increment (radians) =
+    ///   angle_resolution_deg * π / 180.  The driver converts and populates
+    ///   angle_increment in every delivered LaserScanData.
     float         angle_resolution_deg = 1.0f;
     int           rpm               = 600;    ///< Motor speed
 

@@ -52,6 +52,10 @@ public:
 
     virtual bool getColorFrame(ImageFrame& out, int timeout_ms = 0) = 0;
     virtual bool getDepthFrame(ImageFrame& out, int timeout_ms = 0) = 0;
+    /// Get the latest IR frame.
+    /// For single-IR devices this is the only IR stream.
+    /// For stereo-IR devices (e.g. Orbbec Gemini 330) this returns the IR_LEFT
+    /// frame only; use setFrameSetCallback() to receive ir_right simultaneously.
     virtual bool getIRFrame   (ImageFrame& out, int timeout_ms = 0) = 0;
     /// Get the latest point cloud (built by SDK PointCloudFilter or HAL).
     virtual bool getPointCloud(PointCloud& out, int timeout_ms = 0) = 0;
@@ -67,6 +71,9 @@ public:
 
     virtual void setColorCallback   (FrameCallback cb)      = 0;
     virtual void setDepthCallback   (FrameCallback cb)      = 0;
+    /// IR callback for single-IR devices, or for the IR_LEFT stream on stereo-IR
+    /// devices (e.g. Orbbec Gemini 330).  To receive ir_right as well, register
+    /// setFrameSetCallback() which delivers FrameSet::ir_left and ir_right together.
     virtual void setIRCallback      (FrameCallback cb)      = 0;
     /// Aligned frame set (colour + depth + IR from a single device).
     virtual void setFrameSetCallback(FrameSetCallback cb)   = 0;

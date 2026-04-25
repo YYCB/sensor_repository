@@ -45,6 +45,12 @@ public:
     /// Synchronous getter for the most recent DOA estimate.
     /// Returns nullopt if enable_doa = false or no estimate is available yet.
     virtual std::optional<DOAResult> getLatestDOA() const = 0;
+
+    /// Returns true when the device can estimate elevation angle (3D DOA).
+    /// ReSpeaker 4-Mic / 6-Mic circular arrays provide azimuth only and always
+    /// return false.  Returns false if enable_doa = false or the device is not open.
+    /// When true, DOAResult::elevation_valid will be set in every delivered result.
+    virtual bool hasElevationCapability() const = 0;
 };
 
 // ── Factory ───────────────────────────────────────────────────────────────────

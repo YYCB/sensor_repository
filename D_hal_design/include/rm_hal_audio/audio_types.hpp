@@ -44,12 +44,18 @@ struct AudioFrame {
 
 /// Direction-of-arrival (DOA) result from a microphone array.
 struct DOAResult {
-    float    azimuth_deg   = 0.f;   ///< 0 = forward-facing direction, clockwise positive
+    float    azimuth_deg     = 0.f;   ///< 0 = forward-facing direction, clockwise positive
     /// Elevation angle in degrees above the horizontal plane.
+    /// Valid only when elevation_valid == true.
     /// NOTE: 2D microphone arrays (ReSpeaker 4-Mic / 6-Mic circular) cannot
-    /// estimate elevation; this field is always 0.0 for those devices.
-    float    elevation_deg = 0.f;
-    float    confidence    = 0.f;   ///< [0, 1]
+    /// estimate elevation; elevation_deg is always 0.0 and elevation_valid is
+    /// always false for those devices.
+    float    elevation_deg   = 0.f;
+    /// True when the device can estimate elevation and this result carries a
+    /// meaningful elevation_deg value.  Query IAudioHAL::hasElevationCapability()
+    /// to determine at device-open time whether elevation will ever be true.
+    bool     elevation_valid = false;
+    float    confidence      = 0.f;   ///< [0, 1]
     rm::hal::SensorTimestamp timestamp;
 };
 
@@ -69,7 +75,10 @@ struct AudioConfig {
     AudioSampleFormat format = AudioSampleFormat::S16_LE;
     size_t      period_frames = 1024;            ///< ALSA period size in sample frames
     size_t      buffer_frames = 4096;            ///< ALSA buffer size in sample frames
-    bool        enable_doa    = true;            ///< Read DOA from ReSpeaker HID (register 21)
+    /// Read DOA from ReSpeaker HID (register 21).
+    /// Silently ignored — no DOA data is delivered — when device_type == AlsaGeneric,
+    /// because generic ALSA devices have no DOA hardware.
+    bool        enable_doa    = true;
 };
 
 }  // namespace rm::hal::sensor

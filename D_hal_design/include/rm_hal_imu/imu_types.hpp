@@ -123,8 +123,8 @@ struct ImuDeviceInfo {
     std::string firmware_version;  ///< Firmware version string (from DataID 0xA1 if available)
 
     // ── Active ranges (reflecting ImuConfig after open) ───────────────────────
-    AccelRange accel_range;
-    GyroRange  gyro_range;
+    AccelRange accel_range = AccelRange::G8;       ///< Matches ImuConfig default
+    GyroRange  gyro_range  = GyroRange::DPS2000;   ///< Matches ImuConfig default
 
     // ── Factory-calibrated noise parameters ──────────────────────────────────
     double     accel_noise_density      = 1e-4;  ///< m/s²/√Hz

@@ -51,6 +51,9 @@ struct StreamProfile {
     int           fps    = 0;
     PixelEncoding format = PixelEncoding::BGR8;
 
+    /// When true, partialMatch() accepts any pixel format (format field is ignored).
+    bool match_any_format = false;
+
     bool operator==(const StreamProfile& o) const noexcept {
         return stream == o.stream && width == o.width && height == o.height
             && fps == o.fps && format == o.format;
@@ -75,9 +78,6 @@ struct StreamProfile {
         if (!req.match_any_format && format != req.format) return false;
         return true;
     }
-
-    /// When true, partialMatch() accepts any pixel format (format field is ignored).
-    bool match_any_format = false;
 };
 
 // ── Hardware option descriptor ────────────────────────────────────────────────
